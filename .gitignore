@@ -15,3 +15,5 @@ collector.json
 keyword.json
 *.log
 .atomcode
+.env
+.env.*

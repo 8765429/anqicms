@@ -11,7 +11,8 @@ import (
 var crontab *cron.Cron
 
 func Crond() {
-	crontab = cron.New(cron.WithSeconds())
+	// 使用 WithChain + Recover 防止 panic 导致整个调度器崩溃
+	crontab = cron.New(cron.WithSeconds(), cron.WithChain(cron.Recover(cron.DefaultLogger)))
 	//每天执行
 	crontab.AddFunc("@daily", dailyTask)
 	// 每天8点执行
@@ -141,7 +142,8 @@ func CollectArticles() {
 		ch <- true
 		go func(w2 *provider.Website) {
 			defer func() { <-ch }()
-			go w2.AiGenerateArticles()
+			// 移除嵌套 go，确保 AiGenerateArticles 在并发控制内完成
+			w2.AiGenerateArticles()
 			w2.CollectArticles()
 		}(w)
 	}

@@ -21,6 +21,9 @@ import (
 	"kandaoni.com/anqicms/pkg/mcp/server"
 )
 
+// cronParser 支持 5 字段（标准）和 6 字段（带秒）的 cron 表达式
+var cronParser = cron.NewParser(cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+
 // Turn represents a round of interaction: one user message + all following
 // AI responses and tool calls/results.
 type Turn struct {
@@ -392,6 +395,14 @@ func (svc *AiChatService) loadAgentsFromDB() {
 	svc.db.Where("enabled = 1").Find(&agents)
 	svc.agentsMu.Lock()
 	for i := range agents {
+		// 修复：如果 NextRunAt=0 但有 CronExpr，重新计算下次执行时间
+		if agents[i].NextRunAt == 0 && agents[i].CronExpr != "" {
+			scheduler, err := cronParser.Parse(agents[i].CronExpr)
+			if err == nil {
+				agents[i].NextRunAt = scheduler.Next(time.Now()).Unix()
+				svc.db.Model(&agents[i]).Update("next_run_at", agents[i].NextRunAt)
+			}
+		}
 		svc.agents[agents[i].Id] = &agents[i]
 	}
 	svc.agentsMu.Unlock()
@@ -477,6 +488,13 @@ func (svc *AiChatService) checkDueAgents() {
 
 	for _, agent := range dueList {
 		svc.Logger.Info("Agent due, executing", "id", agent.Id, "name", agent.Name)
+		// 防止重复执行：先将 NextRunAt 设为远期安全值，ExecuteAgent 完成后会更新为正确的下次执行时间
+		svc.agentsMu.Lock()
+		agent.NextRunAt = now + 86400 // 24小时后作为安全值
+		svc.agentsMu.Unlock()
+		if svc.db != nil {
+			svc.db.Model(&model.AiAgent{}).Where("id = ?", agent.Id).Update("next_run_at", agent.NextRunAt)
+		}
 		go func(a *model.AiAgent) {
 			if _, err := svc.ExecuteAgent(a); err != nil {
 				svc.Logger.Error("Agent execution failed", "id", a.Id, "error", err)
@@ -486,7 +504,7 @@ func (svc *AiChatService) checkDueAgents() {
 }
 
 // ExecuteAgent 执行 Agent 的任务（非流式 LLM 调用 + 工具循环）
-func (svc *AiChatService) ExecuteAgent(agent *model.AiAgent) (string, error) {
+func (svc *AiChatService) ExecuteAgent(agent *model.AiAgent) (result string, errResult error) {
 	// 创建执行日志
 	logEntry := &model.AiAgentLog{
 		AgentId:   agent.Id,
@@ -507,6 +525,39 @@ func (svc *AiChatService) ExecuteAgent(agent *model.AiAgent) (string, error) {
 			svc.db.Save(logEntry)
 		}
 	}
+
+	// 确保 Agent 状态在任何退出路径下都更新 NextRunAt，防止重复执行
+	defer func() {
+		if result == "" {
+			result = "执行结束，未获取到总结（可能已达到最大轮次或发生错误）。"
+		}
+		svc.agentsMu.Lock()
+		agent.LastRunAt = time.Now().Unix()
+		agent.LastSummary = result
+		agent.RunCount++
+		// 计算下次执行时间
+		if agent.CronExpr != "" {
+			scheduler, err := cronParser.Parse(agent.CronExpr)
+			if err == nil {
+				agent.NextRunAt = scheduler.Next(time.Now()).Unix()
+			}
+		}
+		if agent.MaxRuns > 0 && agent.RunCount >= agent.MaxRuns {
+			agent.Enabled = 0
+		}
+		svc.agentsMu.Unlock()
+
+		// 持久化到 DB
+		if svc.db != nil {
+			svc.db.Model(&model.AiAgent{}).Where("id = ?", agent.Id).Updates(map[string]interface{}{
+				"last_run_at":  agent.LastRunAt,
+				"last_summary": result,
+				"run_count":    agent.RunCount,
+				"next_run_at":  agent.NextRunAt,
+				"enabled":      agent.Enabled,
+			})
+		}
+	}()
 
 	// 构建系统提示
 	systemPrompt := `你是一个 AnQiCMS 的 AI 智能体，需要独立完成任务。
@@ -615,34 +666,12 @@ func (svc *AiChatService) ExecuteAgent(agent *model.AiAgent) (string, error) {
 		}
 	}
 
-	// 更新 Agent 状态
-	svc.agentsMu.Lock()
-	agent.LastRunAt = time.Now().Unix()
-	agent.LastSummary = finalResponse
-	agent.RunCount++
-	// 计算下次执行时间
-	if agent.CronExpr != "" {
-		scheduler, err := cron.ParseStandard(agent.CronExpr)
-		if err == nil {
-			agent.NextRunAt = scheduler.Next(time.Now()).Unix()
-		}
-	}
-	if agent.MaxRuns > 0 && agent.RunCount >= agent.MaxRuns {
-		agent.Enabled = 0
-	}
-	svc.agentsMu.Unlock()
-
-	// 持久化到 DB
-	if svc.db != nil {
-		svc.db.Model(&model.AiAgent{}).Where("id = ?", agent.Id).Updates(map[string]interface{}{
-			"last_run_at":  agent.LastRunAt,
-			"last_summary": finalResponse,
-			"run_count":    agent.RunCount,
-			"next_run_at":  agent.NextRunAt,
-			"enabled":      agent.Enabled,
-		})
+	// 达到最大轮次时，LLM 仍在调用工具，设置默认响应
+	if finalResponse == "" {
+		finalResponse = "已达到最大执行轮次（20轮），任务可能未完全完成。"
 	}
 
+	// Agent 状态更新已由 defer 处理
 	updateLog(1, finalResponse, "")
 	return finalResponse, nil
 }
