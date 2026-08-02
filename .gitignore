@@ -11,9 +11,12 @@ goblog
 /data
 /system
 /release
+/cache
+/public/uploads
 collector.json
 keyword.json
 *.log
 .atomcode
 .env
 .env.*
+docker-compose-deploy.yml
