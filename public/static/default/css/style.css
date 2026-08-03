@@ -1100,6 +1100,28 @@ textarea:focus {
 	margin-right: 5px;
 }
 
+/* banner */
+.slider,
+.page-banner {
+	margin: 0 auto;
+	overflow: hidden;
+}
+
+.slider .banner-item {
+	display: block;
+	width: 100%;
+}
+
+.slider .banner-item img,
+.page-banner img {
+	width: 100%;
+	height: 1.6rem;
+	max-height: none;
+	object-fit: cover;
+	display: block;
+	border-radius: 0;
+}
+
 /* 404 */
 /* pc style */
 @media screen and (min-width: 768px) {
@@ -1110,6 +1132,18 @@ textarea:focus {
 	.container {
 		width: 7.6rem;
 		margin: 0 auto;
+	}
+
+	.slider,
+	.page-banner {
+		width: 7.6rem;
+		margin: 0 auto;
+	}
+
+	.slider .banner-item img,
+	.page-banner img {
+		height: 1.2rem;
+		max-height: none;
 	}
 
 	/* reset */
@@ -1291,6 +1325,17 @@ textarea:focus {
 
 	.container {
 		width: 11.7rem;
+	}
+
+	.slider,
+	.page-banner {
+		width: 11.7rem;
+	}
+
+	.slider .banner-item img,
+	.page-banner img {
+		height: 1.8rem;
+		max-height: none;
 	}
 
 	/* reset */
@@ -1513,6 +1558,18 @@ textarea:focus {
 		margin: 0 auto;
 	}
 
+	.slider,
+	.page-banner {
+		width: 13.7rem;
+		margin: 0 auto;
+	}
+
+	.slider .banner-item img,
+	.page-banner img {
+		height: 2rem;
+		max-height: none;
+	}
+
 	/* reset */
 
 }
@@ -1632,6 +1689,18 @@ textarea:focus {
 	.container {
 		margin-left: 0.15rem;
 		margin-right: 0.15rem;
+	}
+
+	.slider,
+	.page-banner {
+		margin-left: 0.15rem;
+		margin-right: 0.15rem;
+	}
+
+	.slider .banner-item img,
+	.page-banner img {
+		height: 1rem;
+		max-height: none;
 	}
 
 	/* reset */
