@@ -921,6 +921,9 @@ textarea:focus {
 	background: #f6f6f6;
 	border: 0.01rem solid #f1f1f1;
 }
+.rel-pro-ul li:nth-child(n+5) {
+	display: none;
+}
 
 /* rel */
 /* list-solution */
