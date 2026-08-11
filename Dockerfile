@@ -19,6 +19,11 @@ FROM alpine:latest
 # 使用阿里云 Alpine 镜像源加速
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
+# 安装时区数据，使容器内 time.Now() 返回北京时间（修复AI写作时区偏移BUG）
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo "Asia/Shanghai" > /etc/timezone
+
 WORKDIR /app
 RUN mkdir -p -v /app/cache
 RUN mkdir -p -v /app/public
