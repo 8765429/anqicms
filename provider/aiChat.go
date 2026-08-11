@@ -395,8 +395,8 @@ func (svc *AiChatService) loadAgentsFromDB() {
 	svc.db.Where("enabled = 1").Find(&agents)
 	svc.agentsMu.Lock()
 	for i := range agents {
-		// 修复：如果 NextRunAt=0 但有 CronExpr，重新计算下次执行时间
-		if agents[i].NextRunAt == 0 && agents[i].CronExpr != "" {
+		// 修复：如果 NextRunAt=0 或已过期（重启场景），重新计算下次执行时间
+		if agents[i].CronExpr != "" && (agents[i].NextRunAt == 0 || agents[i].NextRunAt <= time.Now().Unix()) {
 			scheduler, err := cronParser.Parse(agents[i].CronExpr)
 			if err == nil {
 				agents[i].NextRunAt = scheduler.Next(time.Now()).Unix()
