@@ -1256,11 +1256,9 @@ func (w *Website) GetTodayArticleCount(from int) int64 {
 			return w.cachedTodayArticleCount.AiGenerateCount
 		}
 		return w.cachedTodayArticleCount.CollectCount
-	} else if w.cachedTodayArticleCount.Day > 0 {
-		// 不同天
-		return 0
 	}
 
+	// 不同天或首次调用：重置缓存并从数据库重新统计当天数量
 	w.cachedTodayArticleCount.Day = today.Day()
 	w.cachedTodayArticleCount.CollectCount = 0
 	w.cachedTodayArticleCount.AiGenerateCount = 0
@@ -1282,7 +1280,13 @@ func (w *Website) GetTodayArticleCount(from int) int64 {
 }
 
 func (w *Website) UpdateTodayArticleCount(collectCount, aiCount int) {
-	w.cachedTodayArticleCount.Day = now.BeginningOfDay().Day()
+	today := now.BeginningOfDay()
+	if w.cachedTodayArticleCount.Day != today.Day() {
+		// 跨天：重置缓存，避免累加上一天的残留计数
+		w.cachedTodayArticleCount.Day = today.Day()
+		w.cachedTodayArticleCount.CollectCount = 0
+		w.cachedTodayArticleCount.AiGenerateCount = 0
+	}
 	if collectCount > 0 {
 		w.cachedTodayArticleCount.CollectCount += int64(collectCount)
 	}
