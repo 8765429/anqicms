@@ -224,6 +224,7 @@ func (w *Website) CollectArticlesByKeyword(keyword model.Keyword, focus bool) (t
 func (w *Website) SaveCollectArticle(archive *request.Archive, keyword *model.Keyword) error {
 	//原始标题
 	archive.OriginTitle = archive.Title
+	archive.OriginId = config.ArchiveFromCollect
 
 	if w.checkArticleExists(archive.OriginUrl, archive.OriginTitle, archive.Title) {
 		//log.Println("已存在于数据库", archive.OriginTitle)

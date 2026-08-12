@@ -16,6 +16,7 @@ services:
       - ./cache:/app/cache
       - ./template:/app/template
       - ./public/uploads:/app/public/uploads
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - anqicms_net
     environment:
